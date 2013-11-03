@@ -1,3 +1,4 @@
+
 /*************************************************** 
  * HD Tune - Motorcycle OBD Analyzer
  * 
@@ -9,7 +10,7 @@
 #include <Adafruit_SSD1331.h>
 #include <SD.h>
 #include <SPI.h>
-#include <stdio.h>
+//#include <stdio.h>
 
 // NeoPixel
 #define PIN 3
@@ -155,9 +156,7 @@ void setupDisplays() {
 
 void menuSetup()
 {
-  menu.getRoot().add(miTemps).add(miGears).add(miSettings);
-  menu.getRoot(); 
-  menu.getRoot();  
+  menu.getRoot().add(miTemps).add(miGears).add(miSettings); 
 }
 
 void loop() {
@@ -219,8 +218,20 @@ void menuChangeEvent(MenuChangeEvent changed)
 
 void showMenu() {
   display.setCursor(0,0);
-  display.fillScreen(BLACK); 
-  display.print(menu.getCurrent().getName());
+  display.fillScreen(BLACK);
+  display.setTextColor(BLACK, WHITE);
+  MenuItem current = menu.getCurrent();
+  MenuItem* parent = current.getBack();
+  display.print(current.getName());
+  display.setTextColor(WHITE, BLACK);
+  MenuItem* next = current.getAfter();
+  //bool run = true;
+  while(next) {
+    String name = next->getName();
+    display.print(name);
+       next = next->getAfter();
+      //if(next) run = false; 
+  }
 }
 
 void showMessage(char* message, int time) {
