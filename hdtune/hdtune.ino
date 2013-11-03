@@ -83,7 +83,7 @@ int revLimit = 9000;
 void setup(void) {
   
   Serial.begin(9600);
-
+  //pinMode(2,INPUT);
   pinMode(cs, OUTPUT);
   digitalWrite(cs, HIGH);
   
@@ -170,7 +170,7 @@ void menuSetup()
   //miSettings.addLeft(menu.getRoot());
   //menu.getRoot().add(miGears);
   //menu.getRoot().add(miSettings); 
-  menu.moveRight();//(miTemps);
+  //menu.moveRight();//(miTemps);
   
 }
 
@@ -182,6 +182,11 @@ void loop() {
       character = Serial.read();
       content.concat(character);
     }
+    
+//    int sensorValue = digitalRead(2);
+//    if (sensorValue == 1) {
+//      menu.moveDown(); 
+//    }
 
     if (content != "") {
 
