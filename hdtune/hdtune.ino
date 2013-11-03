@@ -47,9 +47,17 @@ Adafruit_NeoPixel strip = Adafruit_NeoPixel(60, PIN, NEO_GRB + NEO_KHZ800);
 
 // Menu
 MenuBackend menu = MenuBackend(menuUseEvent,menuChangeEvent);
+
+MenuItem miSettings = "Settings";
+MenuItem miShiftLight = MenuItem("Shift Light");
+MenuItem miConfigReset = MenuItem("Reset Configs");
+
+MenuItem miRevMode = MenuItem("Set Rev Mode");
+MenuItem miRevLimitMode = MenuItem("Set Shift Mode");
+MenuItem miRevLimitRPM = MenuItem("Set Shift RPM");
+
 MenuItem miTemps = MenuItem("Bike Temps");
 MenuItem miGears = MenuItem("Gear Indicator");
-MenuItem miSettings = "Settings";
 
 // For Arduino Uno/Duemilanove, etc
 //  connect the SD card with MOSI going to pin 11, MISO going to pin 12 and SCK going to pin 13 (standard)
@@ -64,9 +72,6 @@ String content = "";
 char character;
 
 int revLimit = 9000;
-// information we extract about the bitmap file
-int bmpWidth, bmpHeight;
-uint8_t bmpDepth, bmpImageoffset;
 
 // Config params
 // 0 : revshift_rpm (9000) 0x2328
@@ -93,6 +98,7 @@ void setup(void) {
   initConfig();
   menuSetup();
   setupDisplays();
+  showMenu();
 }
 
 void initConfig() {
@@ -150,13 +156,22 @@ void setupDisplays() {
 //  char rpmValue[5];
 //  sprintf(rpmValue, "%x", rpm);
 //  display.print(rpmValue);
-  delay(5000);
+  delay(1000);
   display.fillScreen(BLACK); 
 }
 
 void menuSetup()
 {
-  menu.getRoot().add(miTemps).add(miGears).add(miSettings); 
+  menu.getRoot().addChild(miSettings).addChild(miShiftLight).addSibling(miConfigReset);
+  //miTemps.addSibling(miGears);
+  //miGears.addSibling(miSettings);
+  //miTemps.addLeft(menu.getRoot());
+  //miGears.addLeft(menu.getRoot());
+  //miSettings.addLeft(menu.getRoot());
+  //menu.getRoot().add(miGears);
+  //menu.getRoot().add(miSettings); 
+  menu.moveRight();//(miTemps);
+  
 }
 
 void loop() {
@@ -171,16 +186,26 @@ void loop() {
     if (content != "") {
 
       //display.print(content);
-      if (content == "1") {
+      if (content == "s") {
         //display.print("down");
         menu.moveDown();
-        showMenu();
+        //showMenu();
       } 
-      else if (content == "2") {
+      else if (content == "w") {
         //display.print("up");
         menu.moveUp();
-        showMenu();
-      } else if (content == "r") {
+        //showMenu();
+      }
+      else if (content == "a") {
+        //display.print("up");
+        menu.moveLeft();
+        //showMenu();
+      } 
+      else if (content == "d") {
+        //display.print("up");
+        menu.moveRight();
+        //showMenu();
+      }else if (content == "r") {
          resetConfig();
          showMessage("Config restored to defaults", 1000);
       } else if (content == "d") {
@@ -188,9 +213,7 @@ void loop() {
          showMessage("Config deleted", 1000);
       }
       content = "";
-
     }
-
   }
 }
 
@@ -207,11 +230,11 @@ void menuUseEvent(MenuUseEvent used)
 
 void menuChangeEvent(MenuChangeEvent changed)
 {
-  //Serial.print("Menu change ");
-  //Serial.print(changed.from.getName());
-  //Serial.print(" ");
-  //Serial.println(changed.to.getName());
-  
+  Serial.print("Menu change ");
+  Serial.print(changed.from.getName());
+  Serial.print(" -> ");
+  Serial.println(changed.to.getName());
+  showMenu();
   //showMenu(changed.to); 
 }
 
@@ -221,15 +244,19 @@ void showMenu() {
   display.fillScreen(BLACK);
   display.setTextColor(BLACK, WHITE);
   MenuItem current = menu.getCurrent();
-  MenuItem* parent = current.getBack();
+  MenuItem* parent = current.getParent();
   display.print(current.getName());
+  display.print("\n");
+  display.setTextColor(GREEN, WHITE);
+  //String parentname = parent->getName();
+  //display.print(parentname);
   display.setTextColor(WHITE, BLACK);
-  MenuItem* next = current.getAfter();
+  MenuItem* next = parent->getChild();
   //bool run = true;
   while(next) {
     String name = next->getName();
-    display.print(name);
-       next = next->getAfter();
+    display.print(name+"\n");
+       next = next->getSiblingNext();
       //if(next) run = false; 
   }
 }
