@@ -79,6 +79,7 @@ char character;
 
 const int BUTTON_PIN = 2;
 const int BUTTON2_PIN = 12;
+const int BUTTON3_PIN = 11;
 const int LED_PIN =  13;
 
 int revLimit = 9000;
@@ -89,9 +90,10 @@ int revLimit = 9000;
 // 2 : rev_ledcolor (0x07E0)
 // 3 : revshift_ledmode (0) 0x0000 (1) 0x0001
 // 4 : revshift_ledcolor (0xF800)
-Task t1(2000, checkSerial);
-Task t2(100, checkSwitch);
-Task t3(100, checkSwitch2);
+Task t1(50, checkSerial);
+Task t2(10, checkSwitch);
+Task t3(10, checkSwitch2);
+Task t4(10, checkSwitch3);
 
 void setup(void) {
   
@@ -103,7 +105,8 @@ void setup(void) {
   //pinMode(A5, INPUT_PULLUP);
   //pinMode(BUTTON_PIN, INPUT);
   pinMode(BUTTON_PIN, INPUT_PULLUP);
-  pinMode(BUTTON2_PIN, INPUT_PULLUP); 
+  pinMode(BUTTON2_PIN, INPUT_PULLUP);
+  pinMode(BUTTON3_PIN, INPUT_PULLUP); 
   
   display.begin();
   strip.begin();
@@ -121,6 +124,7 @@ void setup(void) {
   SoftTimer.add(&t1);
   SoftTimer.add(&t2);
   SoftTimer.add(&t3);
+  SoftTimer.add(&t4);
 }
 
 void initConfig() {
@@ -146,7 +150,8 @@ void resetConfig() {
 
 void menuSetup()
 {
-  menu.getRoot().addChild(miSettings);//.addChild(miShiftLight).addSibling(miConfigReset);
+  menu.getRoot().addChild(miSettings).addSibling(miConfigReset);
+  //;//.addChild(miShiftLight)
   //miTemps.addSibling(miGears);
   //miGears.addSibling(miSettings);
   //miTemps.addLeft(menu.getRoot());
@@ -158,16 +163,75 @@ void menuSetup()
   
 }
 
+
+void menuUseEvent(MenuUseEvent used)
+{
+  Serial.print("Menu use ");
+  Serial.println(used.item.getName());
+  if (used.item == miTemps) //comparison using a string literal
+  {
+    Serial.println("menuUseEvent found Bike Temps");
+  }
+}
+
+void menuChangeEvent(MenuChangeEvent changed)
+{
+  //Serial.print("Menu change ");
+  //Serial.print(changed.from.getName());
+  //Serial.print(" -> ");
+  //Serial.println(changed.to.getName());
+  showMenu();
+  //showMenu(changed.to); 
+}
+
+
+void showMenu() {
+  display.setCursor(0,0);
+  display.fillScreen(BLACK);
+  display.setTextColor(BLACK, WHITE);
+  MenuItem current = menu.getCurrent();
+  MenuItem parent = current.getParent();
+  display.print(current.getName());
+  display.print("\n");
+  display.setTextColor(GREEN, WHITE);
+  
+  //String parentname = parent->getName();
+  //display.print(parent.getChild().getName());
+  //display.setTextColor(WHITE, BLACK);
+  //MenuItem next = parent.getChild();
+  //Serial.println(next->getName());
+  //bool hasNext = (next!=;
+//  while(next.getName()!="") {
+//    String name = next.getName();
+//    display.print(name);
+//       next = next.getSiblingNext();
+////      //if(next) run = false; 
+//  }
+}
+
+
 int buttonState = 1;
 int button2State = 1;
+int button3State = 1;
+
+void checkSwitch3(Task* me) {
+    int lastState = button3State;
+    button3State = digitalRead(BUTTON3_PIN);
+    //Serial.println(button3State);
+     if (button3State != lastState) {
+       if (button3State == 0) {
+         menu.use();
+       } 
+     } 
+}
 
 void checkSwitch2(Task* me) {
     int last2State = button2State;
     button2State = digitalRead(BUTTON2_PIN);
-    Serial.println(button2State);
+    //Serial.println(button2State);
      if (button2State != last2State) {
        if (button2State == 0) {
-         menu.moveRight();
+         menu.moveDown();
        } 
      } 
 }
@@ -178,17 +242,9 @@ void checkSwitch(Task* me) {
   //Serial.println(buttonState);
   if (buttonState != lastState) { 
     if (buttonState == 0) {
-          menu.moveLeft();
-          //return;
+          menu.moveUp();
     }
   }
-     //Serial.println(buttonState);
-
-      //      int sensorValue = digitalRead(12);
-      //    Serial.println(sensorValue);
-      //    if (sensorValue == 1) {
-      //      menu.moveDown(); 
-      //    }
 }
 
 void checkSerial(Task* me) {
@@ -237,68 +293,9 @@ void checkSerial(Task* me) {
 }
 
 //void loop() {
-  
-  
-      // buttonState = digitalRead(BUTTON_PIN);//analogRead(5);//
-   
-        //  Serial.println(buttonState);
-          //delay(150);
-      //      int sensorValue = digitalRead(12);
-      //    Serial.println(sensorValue);
-      //    if (sensorValue == 1) {
-      //      menu.moveDown(); 
-      //    }
-      //    delay(1); 
-//      
- 
-  
+
 //}
 
-
-void menuUseEvent(MenuUseEvent used)
-{
-  //Serial.print("Menu use ");
-  //Serial.println(used.item.getName());
-  if (used.item == miTemps) //comparison using a string literal
-  {
-    Serial.println("menuUseEvent found Bike Temps");
-  }
-}
-
-void menuChangeEvent(MenuChangeEvent changed)
-{
-  //Serial.print("Menu change ");
-  //Serial.print(changed.from.getName());
-  //Serial.print(" -> ");
-  //Serial.println(changed.to.getName());
-  showMenu();
-  //showMenu(changed.to); 
-}
-
-
-void showMenu() {
-  display.setCursor(0,0);
-  display.fillScreen(BLACK);
-  display.setTextColor(BLACK, WHITE);
-  MenuItem current = menu.getCurrent();
-  MenuItem* parent = current.getParent();
-  display.print(current.getName());
-  display.print("\n");
-  display.setTextColor(GREEN, WHITE);
-  
-  //String parentname = parent->getName();
-  //display.print(parentname);
-  //display.setTextColor(WHITE, BLACK);
-  //MenuItem* next = parent->getChild();
-  //Serial.println(next->getName());
-  //bool run = true;
-//  while(next) {
-//    String name = next->getName();
-//    display.print(name+"\n");
-//       next = next->getSiblingNext();
-//      //if(next) run = false; 
-//  }
-}
 
 
 
