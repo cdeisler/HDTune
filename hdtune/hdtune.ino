@@ -3,6 +3,7 @@
  * HD Tune - Motorcycle OBD Analyzer
  * 
  ****************************************************/
+#include <SoftTimer.h>
 #include <MenuBackend.h>
 //#include <aJSON.h>
 #include <Adafruit_NeoPixel.h>
@@ -22,6 +23,7 @@
 
 // NeoPixel
 #define NEO_PIN 3
+
 
 // Color definitions
 #define	BLACK           0x0000
@@ -65,8 +67,7 @@ MenuItem miGears = MenuItem("Gear Indicator");
 //  Then pin 4 goes to CS (or whatever you have set up)
 #define SD_CS 4    // Set the chip select line to whatever you use (4 doesnt conflict with the library)
 
-const int BUTTON_PIN = 5;
-const int LED_PIN =  13;
+
 
 // the file itself
 //File splashImage;
@@ -74,6 +75,10 @@ const int LED_PIN =  13;
 
 String content = "";
 char character;
+
+
+const int BUTTON_PIN = 2;
+const int LED_PIN =  13;
 
 int revLimit = 9000;
 
@@ -83,6 +88,8 @@ int revLimit = 9000;
 // 2 : rev_ledcolor (0x07E0)
 // 3 : revshift_ledmode (0) 0x0000 (1) 0x0001
 // 4 : revshift_ledcolor (0xF800)
+Task t1(2000, checkSerial);
+Task t2(100, checkSwitch);
 
 void setup(void) {
   
@@ -92,8 +99,8 @@ void setup(void) {
   digitalWrite(cs, HIGH);
   
   //pinMode(A5, INPUT_PULLUP);
+  //pinMode(BUTTON_PIN, INPUT);
   pinMode(BUTTON_PIN, INPUT_PULLUP);
-  //pinMode(BUTTON_PIN, INPUT_PULLUP);
   //pinMode(LED_PIN, OUTPUT); 
   
   display.begin();
@@ -108,7 +115,9 @@ void setup(void) {
   
   setupDisplays();
   menuSetup();
-  //showMenu();
+  
+  SoftTimer.add(&t1);
+  SoftTimer.add(&t2);
 }
 
 void initConfig() {
@@ -131,6 +140,156 @@ void resetConfig() {
    initConfig(); 
 }
 
+
+void menuSetup()
+{
+  menu.getRoot().addChild(miSettings);//.addChild(miShiftLight).addSibling(miConfigReset);
+  //miTemps.addSibling(miGears);
+  //miGears.addSibling(miSettings);
+  //miTemps.addLeft(menu.getRoot());
+  //miGears.addLeft(menu.getRoot());
+  //miSettings.addLeft(menu.getRoot());
+  //menu.getRoot().add(miGears);
+  //menu.getRoot().add(miSettings); 
+  menu.moveRight();//(miTemps);
+  
+}
+
+int buttonState = 0;
+int flip = 0;
+void checkSwitch(Task* me) {
+  int lastState = buttonState;
+   buttonState = digitalRead(BUTTON_PIN);//analogRead(5);//
+   if (buttonState != lastState) {
+     if (buttonState == 1) {
+        if (flip == 0) {
+          menu.moveRight();
+          flip = 1;
+        } else {
+          menu.moveLeft();
+          flip = 0; 
+        }
+     }
+     //Serial.println(buttonState);
+   }
+      //      int sensorValue = digitalRead(12);
+      //    Serial.println(sensorValue);
+      //    if (sensorValue == 1) {
+      //      menu.moveDown(); 
+      //    }
+}
+
+void checkSerial(Task* me) {
+  
+ if (Serial.available()){
+
+    while(Serial.available()) {
+      character = Serial.read();
+      content.concat(character);
+    }
+
+    if (content != "") {
+
+//      //display.print(content);
+      if (content == "s") {
+        //display.print("down");
+        menu.moveDown();
+        //showMenu();
+      } 
+      else if (content == "w") {
+        //display.print("up");
+        menu.moveUp();
+        //showMenu();
+      }
+      else if (content == "a") {
+        //display.print("up");
+        menu.moveLeft();
+        //showMenu();
+      } 
+      else if (content == "d") {
+        //display.print("up");
+        menu.moveRight();
+        //showMenu();
+      }else if (content == "r") {
+         resetConfig();
+         showMessage("Config restored to defaults", 1000);
+      } else if (content == "d") {
+         SD.remove("hdconfig.txt");
+         showMessage("Config deleted", 1000);
+      } else {
+
+      }
+      content = "";
+    }
+  }
+}
+
+//void loop() {
+  
+  
+      // buttonState = digitalRead(BUTTON_PIN);//analogRead(5);//
+   
+        //  Serial.println(buttonState);
+          //delay(150);
+      //      int sensorValue = digitalRead(12);
+      //    Serial.println(sensorValue);
+      //    if (sensorValue == 1) {
+      //      menu.moveDown(); 
+      //    }
+      //    delay(1); 
+//      
+ 
+  
+//}
+
+
+void menuUseEvent(MenuUseEvent used)
+{
+  //Serial.print("Menu use ");
+  //Serial.println(used.item.getName());
+  if (used.item == miTemps) //comparison using a string literal
+  {
+    Serial.println("menuUseEvent found Bike Temps");
+  }
+}
+
+void menuChangeEvent(MenuChangeEvent changed)
+{
+  //Serial.print("Menu change ");
+  //Serial.print(changed.from.getName());
+  //Serial.print(" -> ");
+  //Serial.println(changed.to.getName());
+  showMenu();
+  //showMenu(changed.to); 
+}
+
+
+void showMenu() {
+  display.setCursor(0,0);
+  display.fillScreen(BLACK);
+  display.setTextColor(BLACK, WHITE);
+  MenuItem current = menu.getCurrent();
+  MenuItem* parent = current.getParent();
+  display.print(current.getName());
+  display.print("\n");
+  display.setTextColor(GREEN, WHITE);
+  
+  //String parentname = parent->getName();
+  //display.print(parentname);
+  //display.setTextColor(WHITE, BLACK);
+  //MenuItem* next = parent->getChild();
+  //Serial.println(next->getName());
+  //bool run = true;
+//  while(next) {
+//    String name = next->getName();
+//    display.print(name+"\n");
+//       next = next->getSiblingNext();
+//      //if(next) run = false; 
+//  }
+}
+
+
+
 void setupDisplays() {
 
   //Serial.println("init");
@@ -152,14 +311,6 @@ void setupDisplays() {
 
   display.setCursor(0,0);
 
-//  if (!SD.begin(SD_CS)) {
-//    //Serial.println("failed!");
-//    return;
-//  }
-  //Serial.println("SD OK!");
-
-  //bmpDraw("hdlogo.bmp", 0, 0);
-
   display.fillScreen(BLACK);
   display.print("HD-Tune v0.1.0");
 //  unsigned short rpm = sscanf("0x2328", "%hu");
@@ -168,135 +319,6 @@ void setupDisplays() {
 //  display.print(rpmValue);
   delay(1000);
   display.fillScreen(BLACK); 
-}
-
-void menuSetup()
-{
-  menu.getRoot().addChild(miSettings).addChild(miShiftLight).addSibling(miConfigReset);
-  //miTemps.addSibling(miGears);
-  //miGears.addSibling(miSettings);
-  //miTemps.addLeft(menu.getRoot());
-  //miGears.addLeft(menu.getRoot());
-  //miSettings.addLeft(menu.getRoot());
-  //menu.getRoot().add(miGears);
-  //menu.getRoot().add(miSettings); 
-  menu.moveRight();//(miTemps);
-  
-}
-
-int buttonState = 0;
-
-void loop() {
-  
-            buttonState = digitalRead(BUTTON_PIN);//analogRead(5);//
-          if (buttonState == HIGH) {     
-            // turn LED on:
-            //digitalWrite(LED_PIN, LOW);  
-            showMessage("H", 0);
-          } 
-          else {
-            showMessage("L", 0);
-            menu.moveDown();
-            // turn LED off:
-            //digitalWrite(LED_PIN, HIGH); 
-          }
-          //String val = String(buttonState);
-          //showMessage(val, 1000);
-          Serial.println(buttonState);
-          //delay(150);
-      //      int sensorValue = digitalRead(12);
-      //    Serial.println(sensorValue);
-      //    if (sensorValue == 1) {
-      //      menu.moveDown(); 
-      //    }
-      //    delay(1); 
-//      
-//  if (Serial.available()){
-//
-//    while(Serial.available()) {
-//      character = Serial.read();
-//      content.concat(character);
-//    }
-//
-//    if (content != "") {
-//
-////      //display.print(content);
-//      if (content == "s") {
-//        //display.print("down");
-//        menu.moveDown();
-//        //showMenu();
-//      } 
-//      else if (content == "w") {
-//        //display.print("up");
-//        menu.moveUp();
-//        //showMenu();
-//      }
-//      else if (content == "a") {
-//        //display.print("up");
-//        menu.moveLeft();
-//        //showMenu();
-//      } 
-//      else if (content == "d") {
-//        //display.print("up");
-//        menu.moveRight();
-//        //showMenu();
-//      }else if (content == "r") {
-//         resetConfig();
-//         showMessage("Config restored to defaults", 1000);
-//      } else if (content == "d") {
-//         SD.remove("hdconfig.txt");
-//         showMessage("Config deleted", 1000);
-//      } else {
-//
-//      }
-//      content = "";
-//    }
-//  }
-  
-}
-
-
-void menuUseEvent(MenuUseEvent used)
-{
-  //Serial.print("Menu use ");
-  //Serial.println(used.item.getName());
-  if (used.item == miTemps) //comparison using a string literal
-  {
-    Serial.println("menuUseEvent found Bike Temps");
-  }
-}
-
-void menuChangeEvent(MenuChangeEvent changed)
-{
-  Serial.print("Menu change ");
-  //Serial.print(changed.from.getName());
-  //Serial.print(" -> ");
-  //Serial.println(changed.to.getName());
-  showMenu();
-  //showMenu(changed.to); 
-}
-
-
-void showMenu() {
-  display.setCursor(0,0);
-  display.fillScreen(BLACK);
-  display.setTextColor(BLACK, WHITE);
-  MenuItem current = menu.getCurrent();
-  MenuItem* parent = current.getParent();
-  display.print(current.getName());
-  display.print("\n");
-  display.setTextColor(GREEN, WHITE);
-  //String parentname = parent->getName();
-  //display.print(parentname);
-  display.setTextColor(WHITE, BLACK);
-  MenuItem* next = parent->getChild();
-  //bool run = true;
-  while(next) {
-    String name = next->getName();
-    display.print(name+"\n");
-       next = next->getSiblingNext();
-      //if(next) run = false; 
-  }
 }
 
 void showMessage(char* message, int time) {
