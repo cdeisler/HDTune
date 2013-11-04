@@ -12,15 +12,16 @@
 #include <SPI.h>
 //#include <stdio.h>
 
-// NeoPixel
-#define PIN 3
-
+// Oled
 // If we are using the hardware SPI interface, these are the pins (for future ref)
 #define sclk 13
 #define mosi 11
 #define cs   10
 #define rst  9
 #define dc   8
+
+// NeoPixel
+#define NEO_PIN 3
 
 // Color definitions
 #define	BLACK           0x0000
@@ -42,7 +43,7 @@ Adafruit_SSD1331 display = Adafruit_SSD1331(cs, dc, rst);
 //   NEO_KHZ400  400 KHz (classic 'v1' (not v2) FLORA pixels, WS2811 drivers)
 //   NEO_GRB     Pixels are wired for GRB bitstream (most NeoPixel products)
 //   NEO_RGB     Pixels are wired for RGB bitstream (v1 FLORA pixels, not v2)
-Adafruit_NeoPixel strip = Adafruit_NeoPixel(60, PIN, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel strip = Adafruit_NeoPixel(60, NEO_PIN, NEO_GRB + NEO_KHZ800);
 
 
 // Menu
@@ -64,6 +65,9 @@ MenuItem miGears = MenuItem("Gear Indicator");
 //  Then pin 4 goes to CS (or whatever you have set up)
 #define SD_CS 4    // Set the chip select line to whatever you use (4 doesnt conflict with the library)
 
+const int BUTTON_PIN = 5;
+const int LED_PIN =  13;
+
 // the file itself
 //File splashImage;
 //File cfgFile;
@@ -83,9 +87,14 @@ int revLimit = 9000;
 void setup(void) {
   
   Serial.begin(9600);
-  //pinMode(2,INPUT);
+  
   pinMode(cs, OUTPUT);
   digitalWrite(cs, HIGH);
+  
+  //pinMode(A5, INPUT_PULLUP);
+  pinMode(BUTTON_PIN, INPUT_PULLUP);
+  //pinMode(BUTTON_PIN, INPUT_PULLUP);
+  //pinMode(LED_PIN, OUTPUT); 
   
   display.begin();
   strip.begin();
@@ -96,9 +105,10 @@ void setup(void) {
   }
   
   initConfig();
-  menuSetup();
+  
   setupDisplays();
-  showMenu();
+  menuSetup();
+  //showMenu();
 }
 
 void initConfig() {
@@ -170,56 +180,79 @@ void menuSetup()
   //miSettings.addLeft(menu.getRoot());
   //menu.getRoot().add(miGears);
   //menu.getRoot().add(miSettings); 
-  //menu.moveRight();//(miTemps);
+  menu.moveRight();//(miTemps);
   
 }
 
+int buttonState = 0;
+
 void loop() {
-
-  if (Serial.available()){
-
-    while(Serial.available()) {
-      character = Serial.read();
-      content.concat(character);
-    }
-    
-//    int sensorValue = digitalRead(2);
-//    if (sensorValue == 1) {
-//      menu.moveDown(); 
+  
+            buttonState = digitalRead(BUTTON_PIN);//analogRead(5);//
+          if (buttonState == HIGH) {     
+            // turn LED on:
+            //digitalWrite(LED_PIN, LOW);  
+            showMessage("H", 0);
+          } 
+          else {
+            showMessage("L", 0);
+            menu.moveDown();
+            // turn LED off:
+            //digitalWrite(LED_PIN, HIGH); 
+          }
+          //String val = String(buttonState);
+          //showMessage(val, 1000);
+          Serial.println(buttonState);
+          //delay(150);
+      //      int sensorValue = digitalRead(12);
+      //    Serial.println(sensorValue);
+      //    if (sensorValue == 1) {
+      //      menu.moveDown(); 
+      //    }
+      //    delay(1); 
+//      
+//  if (Serial.available()){
+//
+//    while(Serial.available()) {
+//      character = Serial.read();
+//      content.concat(character);
 //    }
-
-    if (content != "") {
-
-      //display.print(content);
-      if (content == "s") {
-        //display.print("down");
-        menu.moveDown();
-        //showMenu();
-      } 
-      else if (content == "w") {
-        //display.print("up");
-        menu.moveUp();
-        //showMenu();
-      }
-      else if (content == "a") {
-        //display.print("up");
-        menu.moveLeft();
-        //showMenu();
-      } 
-      else if (content == "d") {
-        //display.print("up");
-        menu.moveRight();
-        //showMenu();
-      }else if (content == "r") {
-         resetConfig();
-         showMessage("Config restored to defaults", 1000);
-      } else if (content == "d") {
-         SD.remove("hdconfig.txt");
-         showMessage("Config deleted", 1000);
-      }
-      content = "";
-    }
-  }
+//
+//    if (content != "") {
+//
+////      //display.print(content);
+//      if (content == "s") {
+//        //display.print("down");
+//        menu.moveDown();
+//        //showMenu();
+//      } 
+//      else if (content == "w") {
+//        //display.print("up");
+//        menu.moveUp();
+//        //showMenu();
+//      }
+//      else if (content == "a") {
+//        //display.print("up");
+//        menu.moveLeft();
+//        //showMenu();
+//      } 
+//      else if (content == "d") {
+//        //display.print("up");
+//        menu.moveRight();
+//        //showMenu();
+//      }else if (content == "r") {
+//         resetConfig();
+//         showMessage("Config restored to defaults", 1000);
+//      } else if (content == "d") {
+//         SD.remove("hdconfig.txt");
+//         showMessage("Config deleted", 1000);
+//      } else {
+//
+//      }
+//      content = "";
+//    }
+//  }
+  
 }
 
 
@@ -236,9 +269,9 @@ void menuUseEvent(MenuUseEvent used)
 void menuChangeEvent(MenuChangeEvent changed)
 {
   Serial.print("Menu change ");
-  Serial.print(changed.from.getName());
-  Serial.print(" -> ");
-  Serial.println(changed.to.getName());
+  //Serial.print(changed.from.getName());
+  //Serial.print(" -> ");
+  //Serial.println(changed.to.getName());
   showMenu();
   //showMenu(changed.to); 
 }
@@ -271,7 +304,7 @@ void showMessage(char* message, int time) {
   display.fillScreen(BLACK); 
   display.print(message);
   if (time > 0) {
-     delay(time); 
+     //delay(time); 
   }
 }
 
