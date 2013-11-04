@@ -78,6 +78,7 @@ char character;
 
 
 const int BUTTON_PIN = 2;
+const int BUTTON2_PIN = 12;
 const int LED_PIN =  13;
 
 int revLimit = 9000;
@@ -90,6 +91,7 @@ int revLimit = 9000;
 // 4 : revshift_ledcolor (0xF800)
 Task t1(2000, checkSerial);
 Task t2(100, checkSwitch);
+Task t3(100, checkSwitch2);
 
 void setup(void) {
   
@@ -101,7 +103,7 @@ void setup(void) {
   //pinMode(A5, INPUT_PULLUP);
   //pinMode(BUTTON_PIN, INPUT);
   pinMode(BUTTON_PIN, INPUT_PULLUP);
-  //pinMode(LED_PIN, OUTPUT); 
+  pinMode(BUTTON2_PIN, INPUT_PULLUP); 
   
   display.begin();
   strip.begin();
@@ -118,6 +120,7 @@ void setup(void) {
   
   SoftTimer.add(&t1);
   SoftTimer.add(&t2);
+  SoftTimer.add(&t3);
 }
 
 void initConfig() {
@@ -155,23 +158,32 @@ void menuSetup()
   
 }
 
-int buttonState = 0;
-int flip = 0;
+int buttonState = 1;
+int button2State = 1;
+
+void checkSwitch2(Task* me) {
+    int last2State = button2State;
+    button2State = digitalRead(BUTTON2_PIN);
+    Serial.println(button2State);
+     if (button2State != last2State) {
+       if (button2State == 0) {
+         menu.moveRight();
+       } 
+     } 
+}
+
 void checkSwitch(Task* me) {
   int lastState = buttonState;
-   buttonState = digitalRead(BUTTON_PIN);//analogRead(5);//
-   if (buttonState != lastState) {
-     if (buttonState == 1) {
-        if (flip == 0) {
-          menu.moveRight();
-          flip = 1;
-        } else {
+  buttonState = digitalRead(BUTTON_PIN);//analogRead(5);//
+  //Serial.println(buttonState);
+  if (buttonState != lastState) { 
+    if (buttonState == 0) {
           menu.moveLeft();
-          flip = 0; 
-        }
-     }
+          //return;
+    }
+  }
      //Serial.println(buttonState);
-   }
+
       //      int sensorValue = digitalRead(12);
       //    Serial.println(sensorValue);
       //    if (sensorValue == 1) {
