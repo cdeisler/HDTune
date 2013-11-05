@@ -1,8 +1,13 @@
 
+
 /*************************************************** 
  * HD Tune - Motorcycle OBD Analyzer
  * 
  ****************************************************/
+#include "J1850.h"
+#include <SoftwareSerial.h>
+#include <HardwareSerial.h>
+
 #include <SoftTimer.h>
 #include <MenuBackend.h>
 //#include <aJSON.h>
@@ -11,21 +16,33 @@
 #include <Adafruit_SSD1331.h>
 #include <SD.h>
 #include <SPI.h>
-//#include <stdio.h>
 
-// Oled
-// If we are using the hardware SPI interface, these are the pins (for future ref)
-#define sclk 13
-#define mosi 11
+SoftwareSerial j1850Serial(11, 12); //Rx, TX
+
+//-------- Pin Definitions --------
+//-------- Oled --------
+// If we are using the hardware SPI interface, 
+// these are the pins (for future ref)
+//#define sclk 13
+//#define mosi 11
 #define cs   10
 #define rst  9
 #define dc   8
 
-// NeoPixel
+// For Arduino Uno/Duemilanove, etc
+//  connect the SD card with MOSI going to pin 11, MISO going to pin 12 and SCK going to pin 13 (standard)
+//  Then pin 4 goes to CS (or whatever you have set up)
+#define SD_CS 4    // Set the chip select line to whatever you use (4 doesnt conflict with the library)
+
+//--------- NeoPixel --------
 #define NEO_PIN 3
 
+const int BUTTON_PIN = 2;
+const int LED_PIN =  13;
+const int BUTTON2_PIN = 12;
+const int BUTTON3_PIN = 11;
 
-// Color definitions
+//-------- Color definitions --------
 #define	BLACK           0x0000
 #define	BLUE            0x001F
 #define	RED             0xF800
@@ -35,7 +52,14 @@
 #define YELLOW          0xFFE0  
 #define WHITE           0xFFFF
 
-// to draw images from the SD card, we will share the hardware SPI interface
+//----- Feature flags
+
+boolean ECHO_J1850 = false;   // echo J1850 messages
+boolean USE_J1850 = true;     // use J1850 input
+
+
+// to draw images from the SD card, 
+// we will share the hardware SPI interface
 Adafruit_SSD1331 display = Adafruit_SSD1331(cs, dc, rst);  
 
 // Parameter 1 = number of pixels in strip
@@ -48,39 +72,24 @@ Adafruit_SSD1331 display = Adafruit_SSD1331(cs, dc, rst);
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(60, NEO_PIN, NEO_GRB + NEO_KHZ800);
 
 
-// Menu
-MenuBackend menu = MenuBackend(menuUseEvent,menuChangeEvent);
+//// Menu
+//MenuBackend menu = MenuBackend(menuUseEvent,menuChangeEvent);
+//
+//MenuItem miSettings = "Settings";
+//MenuItem miShiftLight = MenuItem("Shift Light");
+//MenuItem miConfigReset = MenuItem("Reset Configs");
+//
+//MenuItem miRevMode = MenuItem("Set Rev Mode");
+//MenuItem miRevLimitMode = MenuItem("Set Shift Mode");
+//MenuItem miRevLimitRPM = MenuItem("Set Shift RPM");
+//
+//MenuItem miTemps = MenuItem("Bike Temps");
+//MenuItem miGears = MenuItem("Gear Indicator");
 
-MenuItem miSettings = "Settings";
-MenuItem miShiftLight = MenuItem("Shift Light");
-MenuItem miConfigReset = MenuItem("Reset Configs");
-
-MenuItem miRevMode = MenuItem("Set Rev Mode");
-MenuItem miRevLimitMode = MenuItem("Set Shift Mode");
-MenuItem miRevLimitRPM = MenuItem("Set Shift RPM");
-
-MenuItem miTemps = MenuItem("Bike Temps");
-MenuItem miGears = MenuItem("Gear Indicator");
-
-// For Arduino Uno/Duemilanove, etc
-//  connect the SD card with MOSI going to pin 11, MISO going to pin 12 and SCK going to pin 13 (standard)
-//  Then pin 4 goes to CS (or whatever you have set up)
-#define SD_CS 4    // Set the chip select line to whatever you use (4 doesnt conflict with the library)
-
-
-
-// the file itself
-//File splashImage;
-//File cfgFile;
 
 String content = "";
 char character;
 
-
-const int BUTTON_PIN = 2;
-const int BUTTON2_PIN = 12;
-const int BUTTON3_PIN = 11;
-const int LED_PIN =  13;
 
 int revLimit = 9000;
 
@@ -94,6 +103,7 @@ Task t1(50, checkSerial);
 Task t2(10, checkSwitch);
 Task t3(10, checkSwitch2);
 Task t4(10, checkSwitch3);
+Task t5(100, checkJ1950);
 
 void setup(void) {
   
@@ -108,6 +118,9 @@ void setup(void) {
   pinMode(BUTTON2_PIN, INPUT_PULLUP);
   pinMode(BUTTON3_PIN, INPUT_PULLUP); 
   
+   if (USE_J1850) 
+    USE_J1850 = J1850_setup();
+  
   display.begin();
   strip.begin();
 
@@ -119,12 +132,13 @@ void setup(void) {
   initConfig();
   
   setupDisplays();
-  menuSetup();
+  //menuSetup();
   
   SoftTimer.add(&t1);
   SoftTimer.add(&t2);
   SoftTimer.add(&t3);
   SoftTimer.add(&t4);
+  SoftTimer.add(&t5);
 }
 
 void initConfig() {
@@ -148,71 +162,91 @@ void resetConfig() {
 }
 
 
-void menuSetup()
-{
-  menu.getRoot().addChild(miSettings).addSibling(miConfigReset);
-  //;//.addChild(miShiftLight)
-  //miTemps.addSibling(miGears);
-  //miGears.addSibling(miSettings);
-  //miTemps.addLeft(menu.getRoot());
-  //miGears.addLeft(menu.getRoot());
-  //miSettings.addLeft(menu.getRoot());
-  //menu.getRoot().add(miGears);
-  //menu.getRoot().add(miSettings); 
-  menu.moveRight();//(miTemps);
-  
-}
+//void menuSetup()
+//{
+//  menu.getRoot().addChild(miSettings).addSibling(miConfigReset);
+//  //;//.addChild(miShiftLight)
+//  //miTemps.addSibling(miGears);
+//  //miGears.addSibling(miSettings);
+//  //miTemps.addLeft(menu.getRoot());
+//  //miGears.addLeft(menu.getRoot());
+//  //miSettings.addLeft(menu.getRoot());
+//  //menu.getRoot().add(miGears);
+//  //menu.getRoot().add(miSettings); 
+//  menu.moveRight();//(miTemps);
+//  
+//}
 
-
-void menuUseEvent(MenuUseEvent used)
-{
-  Serial.print("Menu use ");
-  Serial.println(used.item.getName());
-  if (used.item == miTemps) //comparison using a string literal
-  {
-    Serial.println("menuUseEvent found Bike Temps");
-  }
-}
-
-void menuChangeEvent(MenuChangeEvent changed)
-{
-  //Serial.print("Menu change ");
-  //Serial.print(changed.from.getName());
-  //Serial.print(" -> ");
-  //Serial.println(changed.to.getName());
-  showMenu();
-  //showMenu(changed.to); 
-}
-
-
-void showMenu() {
-  display.setCursor(0,0);
-  display.fillScreen(BLACK);
-  display.setTextColor(BLACK, WHITE);
-  MenuItem current = menu.getCurrent();
-  MenuItem parent = current.getParent();
-  display.print(current.getName());
-  display.print("\n");
-  display.setTextColor(GREEN, WHITE);
-  
-  //String parentname = parent->getName();
-  //display.print(parent.getChild().getName());
-  //display.setTextColor(WHITE, BLACK);
-  //MenuItem next = parent.getChild();
-  //Serial.println(next->getName());
-  //bool hasNext = (next!=;
-//  while(next.getName()!="") {
-//    String name = next.getName();
-//    display.print(name);
-//       next = next.getSiblingNext();
-////      //if(next) run = false; 
+//
+//void menuUseEvent(MenuUseEvent used)
+//{
+//  Serial.print("Menu use ");
+//  Serial.println(used.item.getName());
+//  if (used.item == miTemps) //comparison using a string literal
+//  {
+//    Serial.println("menuUseEvent found Bike Temps");
 //  }
-}
+//}
+//
+//void menuChangeEvent(MenuChangeEvent changed)
+//{
+//  //Serial.print("Menu change ");
+//  //Serial.print(changed.from.getName());
+//  //Serial.print(" -> ");
+//  //Serial.println(changed.to.getName());
+//  showMenu();
+//  //showMenu(changed.to); 
+//}
+//
+//
+//void showMenu() {
+//  display.setCursor(0,0);
+//  display.fillScreen(BLACK);
+//  display.setTextColor(BLACK, WHITE);
+//  MenuItem current = menu.getCurrent();
+//  MenuItem parent = current.getParent();
+//  display.print(current.getName());
+//  display.print("\n");
+//  display.setTextColor(GREEN, WHITE);
+//  
+//  //String parentname = parent->getName();
+//  //display.print(parent.getChild().getName());
+//  //display.setTextColor(WHITE, BLACK);
+//  //MenuItem next = parent.getChild();
+//  //Serial.println(next->getName());
+//  //bool hasNext = (next!=;
+////  while(next.getName()!="") {
+////    String name = next.getName();
+////    display.print(name);
+////       next = next.getSiblingNext();
+//////      //if(next) run = false; 
+////  }
+//}
 
 
 int buttonState = 1;
 int button2State = 1;
 int button3State = 1;
+char msg[80];
+
+void checkJ1950(Task* me) {
+   if (USE_J1850) {
+      J1850_loop();
+      j1850mesg_t j1850msgType = J1850_getMessageType();
+      if (j1850msgType != NOMSG) {
+        if (J1850_getRawMessage(msg)) {
+          char* msgtype = MapFormatToString(j1850msgType);
+          Serial.println(msgtype);
+          showMessage(msgtype, 0);
+          Serial.println(msg);
+          //SD_log(msg);
+        }
+      } else {
+        //Serial.println(F("NOMSG"));
+        //showMessage("NOMSG", 0);        
+      }
+    }
+}
 
 void checkSwitch3(Task* me) {
     int lastState = button3State;
@@ -220,7 +254,7 @@ void checkSwitch3(Task* me) {
     //Serial.println(button3State);
      if (button3State != lastState) {
        if (button3State == 0) {
-         menu.use();
+        // menu.use();
        } 
      } 
 }
@@ -231,7 +265,7 @@ void checkSwitch2(Task* me) {
     //Serial.println(button2State);
      if (button2State != last2State) {
        if (button2State == 0) {
-         menu.moveDown();
+         //menu.moveDown();
        } 
      } 
 }
@@ -242,7 +276,7 @@ void checkSwitch(Task* me) {
   //Serial.println(buttonState);
   if (buttonState != lastState) { 
     if (buttonState == 0) {
-          menu.moveUp();
+          //menu.moveUp();
     }
   }
 }
@@ -259,26 +293,27 @@ void checkSerial(Task* me) {
     if (content != "") {
 
 //      //display.print(content);
-      if (content == "s") {
-        //display.print("down");
-        menu.moveDown();
-        //showMenu();
-      } 
-      else if (content == "w") {
-        //display.print("up");
-        menu.moveUp();
-        //showMenu();
-      }
-      else if (content == "a") {
-        //display.print("up");
-        menu.moveLeft();
-        //showMenu();
-      } 
-      else if (content == "d") {
-        //display.print("up");
-        menu.moveRight();
-        //showMenu();
-      }else if (content == "r") {
+//      if (content == "s") {
+//        //display.print("down");
+//        menu.moveDown();
+//        //showMenu();
+//      } 
+//      else if (content == "w") {
+//        //display.print("up");
+//        menu.moveUp();
+//        //showMenu();
+//      }
+//      else if (content == "a") {
+//        //display.print("up");
+//        menu.moveLeft();
+//        //showMenu();
+//      } 
+//      else if (content == "d") {
+//        //display.print("up");
+//        menu.moveRight();
+//        //showMenu();
+//      }else 
+      if (content == "r") {
          resetConfig();
          showMessage("Config restored to defaults", 1000);
       } else if (content == "d") {
